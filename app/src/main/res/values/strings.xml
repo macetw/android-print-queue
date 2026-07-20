@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Print Queue</string>
+    <string name="printer_service_name">Print Queue Printer</string>
+</resources>
