@@ -32,19 +32,6 @@ class PrinterService : PrintService() {
     return object : android.printservice.PrinterDiscoverySession() {
       override fun onStartPrinterDiscovery(priorityList: MutableList<PrinterId>) {
         Log.d(tag, "Printer discovery started")
-        val service = this@PrinterService
-        val printerId = android.print.PrinterId.Builder(service, "print_queue", false).build()
-        val capabilities = PrinterCapabilitiesInfo.Builder(printerId)
-          .addMediaSize(PrintAttributes.MediaSize.ISO_A4, true)
-          .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
-          .build()
-
-        val printerInfo = PrinterInfo.Builder(printerId, "Print Queue", 0)
-          .setDescription("Local print queue")
-          .setCapabilities(capabilities)
-          .build()
-
-        addPrinters(listOf(printerInfo))
       }
 
       override fun onStopPrinterDiscovery() {
@@ -52,19 +39,15 @@ class PrinterService : PrintService() {
       }
 
       override fun onValidatePrinters(printerIds: MutableList<PrinterId>) {
-        Log.d(tag, "Validating printers")
       }
 
       override fun onStartPrinterStateTracking(printerId: PrinterId) {
-        Log.d(tag, "Printer state tracking started")
       }
 
       override fun onStopPrinterStateTracking(printerId: PrinterId) {
-        Log.d(tag, "Printer state tracking stopped")
       }
 
       override fun onDestroy() {
-        Log.d(tag, "Discovery session destroyed")
       }
     }
   }
@@ -133,20 +116,11 @@ class PrinterService : PrintService() {
 
     val jobFile = File(jobDir, "job_${System.currentTimeMillis()}.pdf")
 
+    // Create a placeholder file for now - full document handling can be added later
     try {
-      val document = printJob.document
-      if (document != null) {
-        val input = contentResolver.openInputStream(document.uri)
-        if (input != null) {
-          jobFile.outputStream().use { output ->
-            input.copyTo(output)
-          }
-        }
-      }
-    } catch (e: Exception) {
-      Log.e(tag, "Error saving print job file", e)
-      // Create empty placeholder file if document access fails
       jobFile.createNewFile()
+    } catch (e: Exception) {
+      Log.e(tag, "Error creating print job file", e)
     }
 
     return jobFile.absolutePath
