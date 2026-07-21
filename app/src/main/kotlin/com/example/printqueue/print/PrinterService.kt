@@ -32,7 +32,8 @@ class PrinterService : PrintService() {
     return object : android.printservice.PrinterDiscoverySession() {
       override fun onStartPrinterDiscovery(priorityList: MutableList<PrinterId>) {
         Log.d(tag, "Printer discovery started")
-        val printerId = android.print.PrinterId.Builder(this@PrinterService, "print_queue", false).build()
+        val service = this@PrinterService
+        val printerId = android.print.PrinterId.Builder(service, "print_queue", false).build()
         val capabilities = PrinterCapabilitiesInfo.Builder(printerId)
           .addMediaSize(PrintAttributes.MediaSize.ISO_A4, true)
           .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
@@ -133,9 +134,9 @@ class PrinterService : PrintService() {
     val jobFile = File(jobDir, "job_${System.currentTimeMillis()}.pdf")
 
     try {
-      val documentUri = printJob.document?.uri
-      if (documentUri != null) {
-        val input = contentResolver.openInputStream(documentUri)
+      val document = printJob.document
+      if (document != null) {
+        val input = contentResolver.openInputStream(document.uri)
         if (input != null) {
           jobFile.outputStream().use { output ->
             input.copyTo(output)
@@ -144,6 +145,8 @@ class PrinterService : PrintService() {
       }
     } catch (e: Exception) {
       Log.e(tag, "Error saving print job file", e)
+      // Create empty placeholder file if document access fails
+      jobFile.createNewFile()
     }
 
     return jobFile.absolutePath
