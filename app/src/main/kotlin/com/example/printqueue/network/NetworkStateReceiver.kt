@@ -39,15 +39,16 @@ class NetworkStateReceiver : BroadcastReceiver() {
             for (job in pendingJobs) {
               try {
                 val success = printer.printFile(job.filePath, job.fileName)
-                job.status = if (success) "COMPLETED" else "FAILED"
-                job.errorMessage = if (success) null else "Print failed"
-                db.printJobDao().update(job)
-                Log.d("NetworkStateReceiver", "Processed job ${job.id}: ${job.status}")
+                val updated = job.copy(
+                  status = if (success) "COMPLETED" else "FAILED",
+                  errorMessage = if (success) null else "Print failed"
+                )
+                db.printJobDao().update(updated)
+                Log.d("NetworkStateReceiver", "Processed job ${job.id}: ${updated.status}")
               } catch (e: Exception) {
                 Log.e("NetworkStateReceiver", "Error processing job", e)
-                job.status = "FAILED"
-                job.errorMessage = e.message
-                db.printJobDao().update(job)
+                val updated = job.copy(status = "FAILED", errorMessage = e.message)
+                db.printJobDao().update(updated)
               }
             }
           }
