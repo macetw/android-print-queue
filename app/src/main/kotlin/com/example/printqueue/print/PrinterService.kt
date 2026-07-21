@@ -1,6 +1,5 @@
 package com.example.printqueue.print
 
-import android.os.CancellationSignal
 import android.print.PrintAttributes
 import android.print.PrinterCapabilitiesInfo
 import android.print.PrinterId
@@ -29,24 +28,60 @@ class PrinterService : PrintService() {
     Log.d(tag, "PrinterService created")
   }
 
-  override fun onCreatePrinterDiscoverySession(): PrinterDiscoverySession {
-    return QueuePrinterDiscoverySession(this)
+  override fun onCreatePrinterDiscoverySession(): android.printservice.PrinterDiscoverySession {
+    return object : android.printservice.PrinterDiscoverySession() {
+      override fun onStartPrinterDiscovery(priorityList: MutableList<PrinterId>) {
+        Log.d(tag, "Printer discovery started")
+        val printerId = PrinterId.Builder(this@PrinterService, "print_queue", false).build()
+        val capabilities = PrinterCapabilitiesInfo.Builder(printerId)
+          .addMediaSize(PrintAttributes.MediaSize.ISO_A4, true)
+          .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
+          .build()
+
+        val printerInfo = PrinterInfo.Builder(printerId, "Print Queue", PrinterInfo.PRINTER_STATUS_IDLE)
+          .setDescription("Local print queue")
+          .setCapabilities(capabilities)
+          .build()
+
+        addPrinters(listOf(printerInfo))
+      }
+
+      override fun onStopPrinterDiscovery() {
+        Log.d(tag, "Printer discovery stopped")
+      }
+
+      override fun onValidatePrinters(printerIds: MutableList<PrinterId>) {
+        Log.d(tag, "Validating printers")
+      }
+
+      override fun onStartPrinterStateTracking(printerId: PrinterId) {
+        Log.d(tag, "Printer state tracking started")
+      }
+
+      override fun onStopPrinterStateTracking(printerId: PrinterId) {
+        Log.d(tag, "Printer state tracking stopped")
+      }
+
+      override fun onDestroy() {
+        Log.d(tag, "Discovery session destroyed")
+      }
+    }
   }
 
   override fun onPrintJobQueued(printJob: PrintJob) {
     scope.launch {
       try {
-        val printerInfo = printJob.info
+        val jobName = printJob.info.label ?: "Print Job"
 
         // Save print job to database
         val jobData = com.example.printqueue.db.PrintJob(
-          fileName = printerInfo.printerName,
+          fileName = jobName,
           filePath = savePrintJobFile(printJob),
           mimeType = "application/pdf"
         )
 
         db.printJobDao().insert(jobData)
-        Log.d(tag, "Print job saved: ${jobData.fileName}")
+        Log.d(tag, "Print job saved: $jobName")
         printJob.complete()
 
         // Try to process queue immediately
@@ -59,7 +94,7 @@ class PrinterService : PrintService() {
   }
 
   override fun onRequestCancelPrintJob(printJob: PrintJob) {
-    Log.d(tag, "Print job cancelled: ${printJob.info.printerName}")
+    Log.d(tag, "Print job cancelled")
     printJob.cancel()
   }
 
@@ -67,7 +102,6 @@ class PrinterService : PrintService() {
     val printerIp = config.printerIpAddress ?: return
     val printerPort = config.printerPort
 
-    // Check conditions
     val onHomeNetwork = NetworkUtils.isOnHomeNetwork(this, config)
     val printerOnline = NetworkUtils.isPrinterOnline(printerIp, printerPort)
 
@@ -98,54 +132,17 @@ class PrinterService : PrintService() {
 
     val jobFile = File(jobDir, "job_${System.currentTimeMillis()}.pdf")
 
-    val input = contentResolver.openInputStream(printJob.document.uri) ?: return ""
-    jobFile.outputStream().use { output ->
-      input.copyTo(output)
+    try {
+      val input = contentResolver.openInputStream(printJob.document.uri)
+      if (input != null) {
+        jobFile.outputStream().use { output ->
+          input.copyTo(output)
+        }
+      }
+    } catch (e: Exception) {
+      Log.e(tag, "Error saving print job file", e)
     }
 
     return jobFile.absolutePath
-  }
-
-  private inner class QueuePrinterDiscoverySession(private val service: PrinterService) :
-    PrinterDiscoverySession() {
-
-    override fun onStartPrinterDiscovery(priorityList: MutableList<PrinterId>) {
-      Log.d(tag, "Printer discovery started")
-
-      val printerId = PrinterId.Builder(service, "print_queue", false).build()
-      val printerInfo = PrinterInfo.Builder(printerId, "Print Queue", PrinterInfo.PRINTER_STATUS_IDLE)
-        .setDescription("Local print queue")
-        .setCapabilities(getCapabilities(printerId))
-        .build()
-
-      addPrinters(listOf(printerInfo))
-    }
-
-    override fun onStopPrinterDiscovery() {
-      Log.d(tag, "Printer discovery stopped")
-    }
-
-    override fun onValidatePrinters(printerIds: MutableList<PrinterId>) {
-      Log.d(tag, "Validating printers")
-    }
-
-    override fun onStartPrinterStateTracking(printerId: PrinterId) {
-      Log.d(tag, "Printer state tracking started")
-    }
-
-    override fun onStopPrinterStateTracking(printerId: PrinterId) {
-      Log.d(tag, "Printer state tracking stopped")
-    }
-
-    override fun onDestroy() {
-      Log.d(tag, "Discovery session destroyed")
-    }
-
-    private fun getCapabilities(printerId: PrinterId): PrinterCapabilitiesInfo {
-      return PrinterCapabilitiesInfo.Builder(printerId)
-        .addMediaSize(PrintAttributes.MediaSize.ISO_A4, true)
-        .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
-        .build()
-    }
   }
 }
