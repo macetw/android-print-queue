@@ -32,13 +32,13 @@ class PrinterService : PrintService() {
     return object : android.printservice.PrinterDiscoverySession() {
       override fun onStartPrinterDiscovery(priorityList: MutableList<PrinterId>) {
         Log.d(tag, "Printer discovery started")
-        val printerId = PrinterId.Builder(this@PrinterService, "print_queue", false).build()
+        val printerId = android.print.PrinterId.Builder(this@PrinterService, "print_queue", false).build()
         val capabilities = PrinterCapabilitiesInfo.Builder(printerId)
           .addMediaSize(PrintAttributes.MediaSize.ISO_A4, true)
           .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
           .build()
 
-        val printerInfo = PrinterInfo.Builder(printerId, "Print Queue", PrinterInfo.PRINTER_STATUS_IDLE)
+        val printerInfo = PrinterInfo.Builder(printerId, "Print Queue", 0)
           .setDescription("Local print queue")
           .setCapabilities(capabilities)
           .build()
@@ -133,10 +133,13 @@ class PrinterService : PrintService() {
     val jobFile = File(jobDir, "job_${System.currentTimeMillis()}.pdf")
 
     try {
-      val input = contentResolver.openInputStream(printJob.document.uri)
-      if (input != null) {
-        jobFile.outputStream().use { output ->
-          input.copyTo(output)
+      val documentUri = printJob.document?.uri
+      if (documentUri != null) {
+        val input = contentResolver.openInputStream(documentUri)
+        if (input != null) {
+          jobFile.outputStream().use { output ->
+            input.copyTo(output)
+          }
         }
       }
     } catch (e: Exception) {
